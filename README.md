@@ -1,50 +1,83 @@
-# Watts
-
-Android app (Flutter) showing live charging stats: charging power in watts, time to 80% and 100%, a charge forecast in 10% steps, battery temperature, current, voltage and recent power. The look follows the system light or dark setting.
-
-Flutter plugins don't expose battery current, voltage or temperature, so `MainActivity.kt` provides them over a method channel (`watts/battery`). Time estimates assume the current charging rate stays constant, so the 100% figure is optimistic.
-
-<p>
-  <img src="docs/screenshots/charging-light.png" width="240" alt="Charging, light">
-  <img src="docs/screenshots/charging-dark.png" width="240" alt="Charging, dark">
-  <img src="docs/screenshots/on-battery.png" width="240" alt="On battery">
+<p align="center">
+  <img src="assets/icon/legacy.png" width="112" alt="Watts icon">
 </p>
 
-Screenshots are renders of the Flutter UI (in a browser) with sample data, not captured from a phone.
+<h1 align="center">Watts</h1>
 
-Roboto Flex (SIL Open Font License, see `assets/fonts/OFL.txt`) is bundled as a Latin-only subset with a variable weight axis (about 36 KB).
+<p align="center">
+  <b>See how fast your phone is charging.</b><br>
+  Live charging power, time to 80% and 100%, and battery temperature.
+</p>
 
-## Development
+<p align="center">
+  <a href="https://github.com/markprovan/watts/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/markprovan/watts?display_name=tag&color=0F9D6A"></a>
+  <img alt="Android 7.0 and later" src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white">
+  <a href="https://github.com/markprovan/watts/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/markprovan/watts/actions/workflows/ci.yml/badge.svg"></a>
+</p>
 
-```
-flutter pub get
-flutter analyze
-flutter test
-flutter build apk --debug
-```
+<p align="center">
+  <img src="docs/screenshots/charging-light.png" width="250" alt="Charging, light theme">
+  <img src="docs/screenshots/charging-dark.png" width="250" alt="Charging, dark theme">
+  <img src="docs/screenshots/on-battery.png" width="250" alt="On battery">
+</p>
 
-## CI and installing the APK
+## What you get
 
-`.github/workflows/ci.yml` runs format check, analysis and tests on every push and pull request. `.github/workflows/build-apk.yml` builds the debug APK only when app files (`lib/`, `android/`, `pubspec.yaml`, `pubspec.lock`) change on `main`, or when you start it manually from the Actions tab. To install: open the workflow run on GitHub's Actions tab, download the `watts-debug-apk` artifact, unzip it, and open `app-debug.apk` on your phone (allow installs from unknown sources). The debug APK is signed with a debug key, which is fine for sideloading.
+- **Charging power in watts.** A large live reading, with "Fast charging" shown at 15 W and above.
+- **Time to 80% and 100%.** Minutes remaining and the clock time you can expect to be there.
+- **Charge forecast.** The estimated time for each 10% step from 50% to 100%, with 80% highlighted.
+- **Battery temperature.** The reading from the battery's own sensor, marked Normal, Warm or Hot.
+- **Current and voltage.** In milliamps and volts.
+- **Power history.** A chart of the last 5 minutes with the peak.
+- **Light and dark.** Follows your phone's theme. Text follows your phone's text size.
 
-## Releases
+## Private by design
 
-Creating a release in GitHub (or pushing a tag like `v1.2.0`) runs `.github/workflows/release.yml`. It runs the checks, builds a **signed release APK** and attaches `Watts-v1.2.0.apk` to the release (creating the release with generated notes if only a tag was pushed; tags with a `-` such as `v1.2.0-beta` become pre-releases). The tag sets the app version, and the build number is the workflow run number.
+No account, no ads, no analytics. The release app doesn't request internet access or any permission that Android prompts you for. Nothing is stored or sent anywhere. It only reads the battery state your phone already reports.
 
-One-time setup, because the APK must be signed with your own key:
+## Install
 
-1. Create a keystore and **back it up somewhere safe**. If you lose it, phones with the app installed cannot be updated.
-   ```
-   keytool -genkeypair -v -keystore watts-release.jks -alias watts -keyalg RSA -keysize 2048 -validity 10000
-   base64 -w0 watts-release.jks   # on macOS: base64 -i watts-release.jks
-   ```
-2. In the repository settings under Secrets and variables, Actions, add these secrets:
-   `ANDROID_KEYSTORE_BASE64` (the base64 output), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`watts` above) and `ANDROID_KEY_PASSWORD`.
+1. Open the [latest release](https://github.com/markprovan/watts/releases/latest) on your phone and download `Watts-v….apk`.
+2. Open the file. If Android asks, allow installs from your browser or file manager.
+3. Open Watts and plug in a charger.
 
-A tag pushed without the secrets fails straight away with a message naming the missing one. To test the pipeline without secrets, run the Release workflow manually from the Actions tab: it builds with a throwaway key, uploads the APK as a workflow artifact and publishes nothing.
+Requires Android 7.0 or later. To update, install the newer APK over the old one. If you ever installed a test build from the Actions tab, uninstall it first, because test builds use a different signing key.
 
-Debug builds from `main` and release builds are signed with different keys, so Android will not install one over the other. Uninstall the app first when switching.
+## How the numbers are worked out
 
-## Icon
+- **Power** is the battery voltage multiplied by the charging current, smoothed over a few seconds so it doesn't jump around.
+- **Time estimates** divide the charge still needed by the current charging rate. The battery's capacity comes from its own charge counter and level.
+- **Estimates assume the rate stays the same.** Phones slow charging as the battery fills and warms up, so times to 90% and 100% are shorter than real life. The 80% estimate is usually closest.
+- **Temperature status:** Normal below 38°C, Warm from 38°C, Hot from 42°C.
 
-The launcher icon sources are in `assets/icon` (SVG, rendered to PNG). After editing them, run `dart run flutter_launcher_icons` to regenerate the Android icons, including the themed monochrome icon for Android 13 and later.
+## Questions
+
+<details>
+<summary>The power is lower than my charger's label.</summary>
+
+The label is the most the charger can supply. Your phone asks for what it needs, and asks for less as the battery fills, warms up or when you use it. Watts shows what the battery is receiving right now.
+</details>
+
+<details>
+<summary>I see dashes instead of times.</summary>
+
+Some phones don't report the charging current, or report too little for an estimate. Without it, Watts can't work out power or time. Temperature, voltage and the battery level still show.
+</details>
+
+<details>
+<summary>Why does the forecast start at 50%?</summary>
+
+The steps are 50%, 60%, 70%, 80%, 90% and 100%. Steps you have already passed are hidden, so the row shrinks as the battery charges.
+</details>
+
+<details>
+<summary>Does it work with wireless and USB charging?</summary>
+
+Yes. Watts reads the battery, not the charger, and shows the connection type next to "Charging" when your phone reports it.
+</details>
+
+## For developers
+
+Building, testing, releasing and the project layout are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+Roboto Flex is used under the SIL Open Font License ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
