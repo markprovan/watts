@@ -22,4 +22,4 @@ flutter build apk --debug
 
 ## CI and installing the APK
 
-`.github/workflows/ci.yml` runs format check, analysis and tests on every push and pull request. The debug APK is built only on merge to `main` (or when you start the workflow manually from the Actions tab). To install: open the workflow run on GitHub's Actions tab, download the `watts-debug-apk` artifact, unzip it, and open `app-debug.apk` on your phone (allow installs from unknown sources). The debug APK is signed with a debug key, which is fine for sideloading.
+`.github/workflows/ci.yml` runs format check, analysis and tests on every push and pull request. `.github/workflows/build-apk.yml` builds the debug APK only when app files (`lib/`, `android/`, `pubspec.yaml`, `pubspec.lock`) change on `main`, or when you start it manually from the Actions tab. To install: open the workflow run on GitHub's Actions tab, download the `watts-debug-apk` artifact, unzip it, and open `app-debug.apk` on your phone (allow installs from unknown sources). The debug APK is signed with a debug key, which is fine for sideloading.
