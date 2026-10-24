@@ -27,6 +27,7 @@
 - **Time to 80% and 100%.** Minutes remaining and the clock time you can expect to be there.
 - **Charge forecast.** The estimated time for each 10% step from 50% to 100%, with 80% highlighted.
 - **Battery temperature.** The reading from the battery's own sensor, marked Normal, Warm or Hot.
+- **Time left on battery.** When unplugged, how long the charge will last at your recent use, with the clock time it would run out.
 - **Current and voltage.** In milliamps and volts.
 - **Power history.** A chart of the last 5 minutes with the peak.
 - **Light and dark.** Follows your phone's theme. Text follows your phone's text size.
@@ -48,6 +49,7 @@ Requires Android 7.0 or later. To update, install the newer APK over the old one
 - **Power** is the battery voltage multiplied by the charging current, smoothed over a few seconds so it doesn't jump around.
 - **Time estimates** divide the charge still needed by the current charging rate. The battery's capacity comes from its own charge counter and level.
 - **Estimates assume the rate stays the same.** Phones slow charging as the battery fills and warms up, so times to 90% and 100% are shorter than real life. The 80% estimate is usually closest.
+- **Time left on battery** divides the charge remaining by your average drain over the last couple of minutes. It needs about 30 seconds of readings after you open the app, and only measures while the app is open. It assumes you keep using the phone the way you are now, so it changes as you use it, and it won't match Android's own estimate exactly.
 - **Temperature status:** Normal below 38°C, Warm from 38°C, Hot from 42°C.
 
 ## Questions
@@ -68,6 +70,12 @@ Some phones don't report the charging current, or report too little for an estim
 <summary>Why does the forecast start at 50%?</summary>
 
 The steps are 50%, 60%, 70%, 80%, 90% and 100%. Steps you have already passed are hidden, so the row shrinks as the battery charges.
+</details>
+
+<details>
+<summary>The time left keeps changing.</summary>
+
+It follows what your phone is drawing. Watching video or playing a game drains faster and shortens the estimate, and leaving the phone idle lengthens it. Watts averages the drain over the last couple of minutes to keep the number steady.
 </details>
 
 <details>

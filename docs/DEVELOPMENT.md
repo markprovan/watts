@@ -5,7 +5,7 @@ Watts is a Flutter app for Android. Flutter plugins don't expose battery current
 | File | What it holds |
 |---|---|
 | `lib/battery_stats.dart` | Pure logic: unit handling, watts, capacity, time estimates, forecast, temperature status, formatting |
-| `lib/battery_reader.dart` | Polls the method channel every 2 seconds, smooths the current, keeps 5 minutes of power history |
+| `lib/battery_reader.dart` | Polls the method channel every 2 seconds, smooths the current, keeps 5 minutes of power history and the running drain average while unplugged |
 | `lib/theme.dart` | Colours for each state and brightness, and the text style helper |
 | `lib/widgets.dart` | Cards, level bar, forecast, temperature bar, power chart |
 | `lib/main.dart` | App, theme, and the screen layout |
