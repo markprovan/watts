@@ -1,4 +1,4 @@
-name: Build APK
+name: Build debug APK
 
 # Only builds when app files change on main (or when started manually).
 # Tests run separately in ci.yml on the same commit.

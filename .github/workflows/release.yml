@@ -1,0 +1,117 @@
+name: Release
+
+# Pushing a tag like v1.2.0 (for example by creating a release in GitHub) builds a signed
+# release APK and attaches it to the GitHub release. Run manually to test the pipeline:
+# that builds with a throwaway key, uploads the APK as a workflow artifact and publishes nothing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+jobs:
+  release:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check signing secrets
+        if: github.event_name == 'push'
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository secret $name is not set. See the Releases section of the README."
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Set up signing key
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
+            store_password="$ANDROID_KEYSTORE_PASSWORD"
+            key_alias="$ANDROID_KEY_ALIAS"
+            key_password="$ANDROID_KEY_PASSWORD"
+          else
+            echo "No signing secrets: using a throwaway key for this test build."
+            store_password=throwaway
+            key_alias=throwaway
+            key_password=throwaway
+            keytool -genkeypair -keystore android/app/release.jks -storepass "$store_password" \
+              -keypass "$key_password" -alias "$key_alias" -keyalg RSA -keysize 2048 -validity 1 \
+              -dname "CN=Watts test"
+          fi
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$store_password"
+            echo "keyAlias=$key_alias"
+            echo "keyPassword=$key_password"
+          } > android/key.properties
+
+      - name: Work out version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            name="${GITHUB_REF_NAME#v}"
+          else
+            name="0.0.0-test"
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "file=Watts-v$name.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: flutter build apk --release --build-name "${{ steps.version.outputs.name }}" --build-number "${{ github.run_number }}"
+
+      - name: Name the APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk "${{ steps.version.outputs.file }}"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.version.outputs.file }}
+          path: ${{ steps.version.outputs.file }}
+          if-no-files-found: error
+
+      - name: Attach to GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            flags="--generate-notes"
+            case "$tag" in *-*) flags="$flags --prerelease" ;; esac
+            gh release create "$tag" --title "$tag" $flags
+          fi
+          gh release upload "$tag" "${{ steps.version.outputs.file }}" --clobber
