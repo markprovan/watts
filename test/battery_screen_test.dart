@@ -31,7 +31,11 @@ BatteryStats _charging({List<double> history = const [6, 12, 16, 15.8]}) =>
       powerHistory: history,
     );
 
-final _onBattery = BatteryStats(
+BatteryStats _onBattery({
+  double? minutesLeft,
+  double? drainMa,
+  bool estimating = false,
+}) => BatteryStats(
   levelPercent: 83,
   isCharging: false,
   plugType: PlugType.none,
@@ -41,7 +45,10 @@ final _onBattery = BatteryStats(
   temperatureC: 29.1,
   minutesTo80: null,
   minutesTo100: null,
-  updatedAt: DateTime(2026),
+  updatedAt: _now,
+  minutesLeft: minutesLeft,
+  drainMa: drainMa,
+  estimatingTimeLeft: estimating,
 );
 
 Future<void> _pump(
@@ -125,7 +132,7 @@ void main() {
   });
 
   testWidgets('on battery shows level and a prompt to plug in', (tester) async {
-    await _pump(tester, _onBattery);
+    await _pump(tester, _onBattery());
 
     expect(find.text('83'), findsOneWidget);
     expect(find.text('Battery level'), findsOneWidget);
@@ -135,6 +142,40 @@ void main() {
     expect(find.text('29.1'), findsOneWidget);
     expect(find.text('Charge forecast'), findsNothing);
     expect(find.text('Time to 80%'), findsNothing);
+    expect(find.text('Time left'), findsNothing);
+  });
+
+  testWidgets('on battery shows time left and drain once known', (
+    tester,
+  ) async {
+    // 680 minutes after 9:14 is 20:34.
+    await _pump(tester, _onBattery(minutesLeft: 680, drainMa: 240));
+
+    expect(find.text('About 11 h 20 min left'), findsOneWidget);
+    expect(find.text('Time left'), findsOneWidget);
+    expect(find.text('11 h 20'), findsOneWidget);
+    expect(find.text('Empty about 8:34 PM'), findsOneWidget);
+    expect(find.text('Drain'), findsOneWidget);
+    expect(find.text('240'), findsOneWidget);
+    expect(find.textContaining('Time left assumes'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on battery says estimating while readings are collected', (
+    tester,
+  ) async {
+    await _pump(tester, _onBattery(estimating: true));
+    expect(find.text('Not charging · estimating time left…'), findsOneWidget);
+    expect(find.text('Time left'), findsNothing);
+  });
+
+  testWidgets('on battery with time left at 2x text size does not overflow', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pump(tester, _onBattery(minutesLeft: 680, drainMa: 1240));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dark mode renders without errors', (tester) async {

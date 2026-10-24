@@ -71,6 +71,9 @@ class BatteryStats {
     required this.updatedAt,
     this.forecast = const [],
     this.powerHistory = const [],
+    this.minutesLeft,
+    this.drainMa,
+    this.estimatingTimeLeft = false,
   });
 
   final int levelPercent;
@@ -92,8 +95,20 @@ class BatteryStats {
   /// Recent charging power in watts, oldest first.
   final List<double> powerHistory;
 
+  /// Minutes of battery life left at the recent drain, when unplugged and known.
+  final double? minutesLeft;
+
+  /// Recent average drain in milliamps, when unplugged and known.
+  final double? drainMa;
+
+  /// Unplugged and still collecting enough readings for [minutesLeft].
+  final bool estimatingTimeLeft;
+
   DateTime? get eta80 => _eta(minutesTo80);
   DateTime? get eta100 => _eta(minutesTo100);
+
+  /// When the battery runs out at the recent drain.
+  DateTime? get emptyAt => _eta(minutesLeft);
 
   double? get peakWatts =>
       powerHistory.isEmpty ? null : powerHistory.reduce(math.max);
@@ -196,15 +211,43 @@ List<ForecastStep> chargeForecast({
   return steps;
 }
 
+/// Running average of the discharge current while unplugged.
+class DrainEstimate {
+  const DrainEstimate(this.averageMa, this.samples);
+
+  final double averageMa;
+  final int samples;
+
+  bool get isReady => samples >= minDrainSamples;
+}
+
+/// Readings (2 seconds apart) needed before showing time left, about 30 seconds.
+const int minDrainSamples = 15;
+
+/// Drain below this is treated as noise and gives no estimate.
+const double minDrainMa = 20;
+
+/// Weight of a new drain reading: a plain average at first, then a moving
+/// average that settles to roughly the last two minutes.
+double drainAlpha(int samples) => math.max(1 / samples, 0.02);
+
+/// Minutes until empty at a constant [drainMa], or null if it cannot be estimated.
+double? minutesLeft({required int chargeCounterUah, required double drainMa}) {
+  if (chargeCounterUah <= 0 || drainMa < minDrainMa) return null;
+  return chargeCounterUah / 1000 / drainMa * 60;
+}
+
 BatteryStats computeStats(
   BatterySnapshot s,
   double smoothedCurrentMa, {
   DateTime? now,
   List<double> powerHistory = const [],
+  DrainEstimate? drain,
 }) {
   final time = now ?? DateTime.now();
   final charging = s.isCharging;
   final capacity = capacityMah(s.chargeCounterUah, s.levelPercent);
+  final readyDrain = !charging && drain != null && drain.isReady ? drain : null;
   double? eta(int target) => charging
       ? minutesToTarget(
           levelPercent: s.levelPercent,
@@ -233,6 +276,17 @@ BatteryStats computeStats(
           )
         : const [],
     powerHistory: charging ? powerHistory : const [],
+    minutesLeft: readyDrain == null
+        ? null
+        : minutesLeft(
+            chargeCounterUah: s.chargeCounterUah,
+            drainMa: readyDrain.averageMa,
+          ),
+    drainMa: readyDrain != null && readyDrain.averageMa >= minDrainMa
+        ? readyDrain.averageMa
+        : null,
+    estimatingTimeLeft:
+        !charging && drain != null && !drain.isReady && s.chargeCounterUah > 0,
   );
 }
 
@@ -260,12 +314,14 @@ List<double> downsample(List<double> values, int maxPoints) {
   return ('${total ~/ 60} h ${(total % 60).toString().padLeft(2, '0')}', 'min');
 }
 
-/// Clock time for finish estimates. The 12-hour form has no am/pm to stay compact.
-String formatClock(DateTime t, {required bool use24h}) {
+/// Clock time for finish estimates. The 12-hour form leaves out am/pm to stay
+/// compact unless [suffix] is set, which is needed when the time can be many hours away.
+String formatClock(DateTime t, {required bool use24h, bool suffix = false}) {
   final minute = t.minute.toString().padLeft(2, '0');
   if (use24h) return '${t.hour.toString().padLeft(2, '0')}:$minute';
   final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
-  return '$hour:$minute';
+  final period = suffix ? (t.hour < 12 ? ' AM' : ' PM') : '';
+  return '$hour:$minute$period';
 }
 
 String formatPower(double watts) =>
@@ -287,3 +343,19 @@ String chargingLabel(BatteryStats stats) {
     final plug => '$speed · ${plug.label}',
   };
 }
+
+/// Number and unit for the time-left tile; very long estimates are capped.
+(String, String) timeLeftParts(double? minutes) {
+  if (minutes != null && minutes >= _maxTimeLeftMinutes) return ('2+', 'days');
+  return durationParts(minutes);
+}
+
+/// Sentence for the hero line, e.g. "About 11 h 20 min left".
+String timeLeftLabel(double minutes) {
+  if (minutes >= _maxTimeLeftMinutes) return 'More than 2 days left';
+  if (minutes < 1) return 'Under 1 min left';
+  final (value, unit) = durationParts(minutes);
+  return 'About $value $unit left';
+}
+
+const double _maxTimeLeftMinutes = 2 * 24 * 60;

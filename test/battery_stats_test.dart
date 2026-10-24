@@ -233,6 +233,87 @@ void main() {
     expect(downsample(List.filled(150, 4.0), 60), hasLength(60));
   });
 
+  group('time left on battery', () {
+    test('divides remaining charge by drain', () {
+      // 2.5 Ah left at 250 mA is 10 hours.
+      expect(
+        minutesLeft(chargeCounterUah: 2500000, drainMa: 250),
+        closeTo(600, 1e-9),
+      );
+    });
+
+    test('no estimate without a charge counter or with negligible drain', () {
+      expect(minutesLeft(chargeCounterUah: 0, drainMa: 250), isNull);
+      expect(minutesLeft(chargeCounterUah: 2500000, drainMa: 5), isNull);
+    });
+
+    test('drainAlpha is a plain average at first, then settles', () {
+      expect(drainAlpha(1), 1);
+      expect(drainAlpha(2), 0.5);
+      expect(drainAlpha(10), closeTo(0.1, 1e-9));
+      expect(drainAlpha(500), 0.02);
+    });
+
+    test('computeStats gives time left once enough readings are in', () {
+      final now = DateTime(2026, 1, 1, 12);
+      final s = computeStats(
+        snapshot(charging: false, counterUah: 2500000),
+        300,
+        now: now,
+        drain: const DrainEstimate(250, minDrainSamples),
+      );
+      expect(s.minutesLeft, closeTo(600, 1e-9));
+      expect(s.drainMa, 250);
+      expect(s.emptyAt, now.add(const Duration(hours: 10)));
+      expect(s.estimatingTimeLeft, isFalse);
+    });
+
+    test('computeStats says estimating while readings are few', () {
+      final s = computeStats(
+        snapshot(charging: false),
+        300,
+        drain: const DrainEstimate(250, minDrainSamples - 1),
+      );
+      expect(s.minutesLeft, isNull);
+      expect(s.drainMa, isNull);
+      expect(s.estimatingTimeLeft, isTrue);
+    });
+
+    test(
+      'computeStats gives nothing when the charge counter is unsupported',
+      () {
+        final s = computeStats(
+          snapshot(charging: false, counterUah: 0),
+          300,
+          drain: const DrainEstimate(250, minDrainSamples),
+        );
+        expect(s.minutesLeft, isNull);
+        expect(s.estimatingTimeLeft, isFalse);
+      },
+    );
+
+    test('computeStats ignores drain while charging', () {
+      final s = computeStats(
+        snapshot(),
+        2000,
+        drain: const DrainEstimate(250, 100),
+      );
+      expect(s.minutesLeft, isNull);
+      expect(s.drainMa, isNull);
+      expect(s.estimatingTimeLeft, isFalse);
+    });
+
+    test('timeLeftParts and timeLeftLabel', () {
+      expect(timeLeftParts(680), ('11 h 20', 'min'));
+      expect(timeLeftParts(45), ('45', 'min'));
+      expect(timeLeftParts(3000), ('2+', 'days'));
+      expect(timeLeftLabel(680), 'About 11 h 20 min left');
+      expect(timeLeftLabel(45), 'About 45 min left');
+      expect(timeLeftLabel(0.4), 'Under 1 min left');
+      expect(timeLeftLabel(3000), 'More than 2 days left');
+    });
+  });
+
   test('durationParts', () {
     expect(durationParts(null), ('—', ''));
     expect(durationParts(0), ('Reached', ''));
@@ -245,6 +326,18 @@ void main() {
     expect(formatClock(DateTime(2026, 1, 1, 9, 5), use24h: false), '9:05');
     expect(formatClock(DateTime(2026, 1, 1, 0, 30), use24h: false), '12:30');
     expect(formatClock(DateTime(2026, 1, 1, 21, 41), use24h: false), '9:41');
+    expect(
+      formatClock(DateTime(2026, 1, 1, 21, 41), use24h: false, suffix: true),
+      '9:41 PM',
+    );
+    expect(
+      formatClock(DateTime(2026, 1, 1, 0, 30), use24h: false, suffix: true),
+      '12:30 AM',
+    );
+    expect(
+      formatClock(DateTime(2026, 1, 1, 21, 41), use24h: true, suffix: true),
+      '21:41',
+    );
     expect(formatClock(DateTime(2026, 1, 1, 9, 5), use24h: true), '09:05');
     expect(formatClock(DateTime(2026, 1, 1, 21, 41), use24h: true), '21:41');
   });

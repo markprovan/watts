@@ -117,8 +117,9 @@ class _Sky extends StatelessWidget {
   List<Widget> _children(BuildContext context, WattsColors colors) {
     final s = stats;
     final use24h = MediaQuery.alwaysUse24HourFormatOf(context);
-    String? eta(DateTime? t, String prefix) =>
-        t == null ? null : '$prefix ${formatClock(t, use24h: use24h)}';
+    String? eta(DateTime? t, String prefix, {bool suffix = false}) => t == null
+        ? null
+        : '$prefix ${formatClock(t, use24h: use24h, suffix: suffix)}';
     final (v80, u80) = durationParts(s.minutesTo80);
     final (v100, u100) = durationParts(s.minutesTo100);
 
@@ -190,6 +191,35 @@ class _Sky extends StatelessWidget {
           ),
         ),
       ] else ...[
+        if (s.minutesLeft != null && s.drainMa != null)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: StatTile(
+                    colors: colors,
+                    label: 'Time left',
+                    icon: Icons.hourglass_bottom_rounded,
+                    value: timeLeftParts(s.minutesLeft).$1,
+                    unit: timeLeftParts(s.minutesLeft).$2,
+                    caption: eta(s.emptyAt, 'Empty about', suffix: true),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: StatTile(
+                    colors: colors,
+                    label: 'Drain',
+                    icon: Icons.trending_down_rounded,
+                    value: formatMa(s.drainMa!),
+                    unit: 'mA',
+                    caption: 'Recent average',
+                  ),
+                ),
+              ],
+            ),
+          ),
         _PlugInCard(colors: colors),
         Row(
           children: [
@@ -216,6 +246,15 @@ class _Sky extends StatelessWidget {
             ),
           ],
         ),
+        if (s.minutesLeft != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'Time left assumes you keep using your phone the way you are now, '
+              'so it changes as you use it.',
+              style: wattsText(12, color: colors.on2, height: 1.5),
+            ),
+          ),
       ],
     ];
     return [
@@ -282,8 +321,13 @@ class _Hero extends StatelessWidget {
         : '${stats.levelPercent}';
     final unit = charging ? 'W' : '%';
     final eta100 = stats.eta100;
+    final left = stats.minutesLeft;
     final meta = !charging
-        ? 'Not charging'
+        ? left != null
+              ? timeLeftLabel(left)
+              : stats.estimatingTimeLeft
+              ? 'Not charging · estimating time left…'
+              : 'Not charging'
         : stats.levelPercent >= 100
         ? 'Fully charged'
         : eta100 == null

@@ -13,6 +13,8 @@ Stream<BatteryStats> batteryStatsStream({
 }) async* {
   double? smoothedCurrentMa;
   final history = <double>[];
+  double? drainAverage;
+  var drainSamples = 0;
   while (true) {
     final map = await _channel.invokeMapMethod<Object?, Object?>('snapshot');
     if (map != null) {
@@ -21,16 +23,27 @@ Stream<BatteryStats> batteryStatsStream({
         smoothedCurrentMa,
         currentMa(snapshot.currentRaw),
       );
+      DrainEstimate? drain;
       if (snapshot.isCharging) {
         history.add(watts(snapshot.voltageMv, smoothedCurrentMa));
         if (history.length > _maxHistory) history.removeAt(0);
+        drainAverage = null;
+        drainSamples = 0;
       } else {
         history.clear();
+        drainSamples++;
+        drainAverage = smooth(
+          drainAverage,
+          currentMa(snapshot.currentRaw),
+          alpha: drainAlpha(drainSamples),
+        );
+        drain = DrainEstimate(drainAverage, drainSamples);
       }
       yield computeStats(
         snapshot,
         smoothedCurrentMa,
         powerHistory: List.of(history),
+        drain: drain,
       );
     }
     await Future<void>.delayed(interval);
