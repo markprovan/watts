@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// How the device is being charged.
 enum PlugType {
   none('Not plugged in'),
@@ -66,6 +68,9 @@ class BatteryStats {
     required this.temperatureC,
     required this.minutesTo80,
     required this.minutesTo100,
+    required this.updatedAt,
+    this.forecast = const [],
+    this.powerHistory = const [],
   });
 
   final int levelPercent;
@@ -77,7 +82,57 @@ class BatteryStats {
   final double temperatureC;
   final double? minutesTo80;
   final double? minutesTo100;
+
+  /// When the values above were read; estimated finish times count from here.
+  final DateTime updatedAt;
+
+  /// Estimated time of each 10% step above the current level, empty if unknown.
+  final List<ForecastStep> forecast;
+
+  /// Recent charging power in watts, oldest first.
+  final List<double> powerHistory;
+
+  DateTime? get eta80 => _eta(minutesTo80);
+  DateTime? get eta100 => _eta(minutesTo100);
+
+  double? get peakWatts =>
+      powerHistory.isEmpty ? null : powerHistory.reduce(math.max);
+
+  DateTime? _eta(double? minutes) => minutes == null || minutes <= 0
+      ? null
+      : updatedAt.add(Duration(seconds: (minutes * 60).round()));
 }
+
+/// Estimated time at which the battery reaches [percent].
+class ForecastStep {
+  const ForecastStep(this.percent, this.eta);
+
+  final int percent;
+  final DateTime eta;
+}
+
+/// Above this charging power the app calls it "fast charging".
+const double fastChargeWatts = 15;
+
+const List<int> forecastTargets = [50, 60, 70, 80, 90, 100];
+
+enum TempStatus {
+  normal('Normal'),
+  warm('Warm'),
+  hot('Hot');
+
+  const TempStatus(this.label);
+  final String label;
+}
+
+TempStatus tempStatus(double celsius) {
+  if (celsius >= 42) return TempStatus.hot;
+  if (celsius >= 38) return TempStatus.warm;
+  return TempStatus.normal;
+}
+
+/// Position of [celsius] on the 15 to 45 degree temperature bar, 0 to 1.
+double tempBarFraction(double celsius) => ((celsius - 15) / 30).clamp(0.0, 1.0);
 
 const double _minUsableCurrentMa = 50;
 
@@ -116,7 +171,38 @@ double? minutesToTarget({
 double smooth(double? previous, double sample, {double alpha = 0.3}) =>
     previous == null ? sample : previous + alpha * (sample - previous);
 
-BatteryStats computeStats(BatterySnapshot s, double smoothedCurrentMa) {
+/// Estimated time for each step in [forecastTargets] above [levelPercent].
+/// Empty when the rate or capacity is unknown.
+List<ForecastStep> chargeForecast({
+  required int levelPercent,
+  required double? capacityMah,
+  required double currentMa,
+  required DateTime now,
+}) {
+  final steps = <ForecastStep>[];
+  for (final target in forecastTargets) {
+    if (target <= levelPercent) continue;
+    final minutes = minutesToTarget(
+      levelPercent: levelPercent,
+      targetPercent: target,
+      capacityMah: capacityMah,
+      currentMa: currentMa,
+    );
+    if (minutes == null) return const [];
+    steps.add(
+      ForecastStep(target, now.add(Duration(seconds: (minutes * 60).round()))),
+    );
+  }
+  return steps;
+}
+
+BatteryStats computeStats(
+  BatterySnapshot s,
+  double smoothedCurrentMa, {
+  DateTime? now,
+  List<double> powerHistory = const [],
+}) {
+  final time = now ?? DateTime.now();
   final charging = s.isCharging;
   final capacity = capacityMah(s.chargeCounterUah, s.levelPercent);
   double? eta(int target) => charging
@@ -137,14 +223,67 @@ BatteryStats computeStats(BatterySnapshot s, double smoothedCurrentMa) {
     temperatureC: s.temperatureTenthsC / 10,
     minutesTo80: eta(80),
     minutesTo100: eta(100),
+    updatedAt: time,
+    forecast: charging
+        ? chargeForecast(
+            levelPercent: s.levelPercent,
+            capacityMah: capacity,
+            currentMa: smoothedCurrentMa,
+            now: time,
+          )
+        : const [],
+    powerHistory: charging ? powerHistory : const [],
   );
 }
 
-String formatDuration(double? minutes) {
-  if (minutes == null) return '—';
-  if (minutes <= 0) return 'Reached';
-  if (minutes < 1) return '<1 min';
+/// Keeps at most [maxPoints] values by averaging neighbours, so a long
+/// history draws as a short smooth line.
+List<double> downsample(List<double> values, int maxPoints) {
+  if (values.length <= maxPoints) return values;
+  final result = <double>[];
+  for (var i = 0; i < maxPoints; i++) {
+    final start = i * values.length ~/ maxPoints;
+    final end = math.max(start + 1, (i + 1) * values.length ~/ maxPoints);
+    final chunk = values.sublist(start, end);
+    result.add(chunk.reduce((a, b) => a + b) / chunk.length);
+  }
+  return result;
+}
+
+/// Number and unit for a duration tile, e.g. ("27", "min") or ("Reached", "").
+(String, String) durationParts(double? minutes) {
+  if (minutes == null) return ('—', '');
+  if (minutes <= 0) return ('Reached', '');
+  if (minutes < 1) return ('<1', 'min');
   final total = minutes.toInt();
-  if (total < 60) return '$total min';
-  return '${total ~/ 60} h ${(total % 60).toString().padLeft(2, '0')} min';
+  if (total < 60) return ('$total', 'min');
+  return ('${total ~/ 60} h ${(total % 60).toString().padLeft(2, '0')}', 'min');
+}
+
+/// Clock time for finish estimates. The 12-hour form has no am/pm to stay compact.
+String formatClock(DateTime t, {required bool use24h}) {
+  final minute = t.minute.toString().padLeft(2, '0');
+  if (use24h) return '${t.hour.toString().padLeft(2, '0')}:$minute';
+  final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
+  return '$hour:$minute';
+}
+
+String formatPower(double watts) =>
+    watts >= 100 ? watts.toStringAsFixed(0) : watts.toStringAsFixed(1);
+
+/// Whole milliamps with a thousands separator, e.g. 3,800.
+String formatMa(double ma) => ma.round().toString().replaceAllMapped(
+  RegExp(r'\B(?=(\d{3})+(?!\d))'),
+  (_) => ',',
+);
+
+String chargingLabel(BatteryStats stats) {
+  if (!stats.isCharging) return 'On battery';
+  final speed = (stats.watts ?? 0) >= fastChargeWatts
+      ? 'Fast charging'
+      : 'Charging';
+  return switch (stats.plugType) {
+    PlugType.none || PlugType.unknown => speed,
+    final plug => '$speed · ${plug.label}',
+  };
 }
