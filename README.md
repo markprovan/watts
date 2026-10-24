@@ -4,6 +4,13 @@ Android app (Flutter) showing live charging stats: charging power in watts, time
 
 Flutter plugins don't expose battery current, voltage or temperature, so `MainActivity.kt` provides them over a method channel (`watts/battery`). Time estimates assume the current charging rate stays constant, so the 100% figure is optimistic.
 
+<p>
+  <img src="docs/screenshots/screenshot-charging.png" width="260" alt="Charging">
+  <img src="docs/screenshots/screenshot-idle.png" width="260" alt="Not charging">
+</p>
+
+Screenshots are renders of the Flutter UI with sample data, not captured from a phone.
+
 ## Development
 
 ```
