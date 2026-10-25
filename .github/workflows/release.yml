@@ -3,6 +3,7 @@ name: Release
 # Pushing a tag like v1.2.0 (for example by creating a release in GitHub) builds a signed
 # release APK and attaches it to the GitHub release. Run manually to test the pipeline:
 # that builds with a throwaway key, uploads the APK as a workflow artifact and publishes nothing.
+# The signing secrets are only passed to the two steps that need them, not to the whole job.
 on:
   push:
     tags: ['v*']
@@ -11,18 +12,17 @@ on:
 permissions:
   contents: write
 
-env:
-  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
 jobs:
   release:
     runs-on: ubuntu-26.04
     steps:
       - name: Check signing secrets
         if: github.event_name == 'push'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           missing=0
           for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
@@ -57,6 +57,11 @@ jobs:
         run: flutter test
 
       - name: Set up signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
