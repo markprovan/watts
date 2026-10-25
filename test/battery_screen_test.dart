@@ -5,31 +5,49 @@ import 'package:watts/main.dart';
 
 final _now = DateTime(2026, 1, 1, 9, 14);
 
-BatteryStats _charging({List<double> history = const [6, 12, 16, 15.8]}) =>
-    BatteryStats(
-      levelPercent: 42,
-      isCharging: true,
-      plugType: PlugType.ac,
-      watts: 15.8,
-      currentMa: 3800,
-      voltageV: 4.15,
-      temperatureC: 33.4,
-      minutesTo80: 27,
-      minutesTo100: 41,
-      updatedAt: _now,
-      forecast: [
-        for (final (percent, minutes) in [
-          (50, 6),
-          (60, 13),
-          (70, 20),
-          (80, 27),
-          (90, 34),
-          (100, 41),
-        ])
-          ForecastStep(percent, _now.add(Duration(minutes: minutes))),
-      ],
-      powerHistory: history,
-    );
+BatteryStats _charging({
+  List<double> history = const [6, 12, 16, 15.8],
+  bool fromSystem = false,
+}) => BatteryStats(
+  levelPercent: 42,
+  isCharging: true,
+  plugType: PlugType.ac,
+  watts: 15.8,
+  currentMa: 3800,
+  voltageV: 4.15,
+  temperatureC: 33.4,
+  minutesTo80: 27,
+  minutesTo100: 41,
+  updatedAt: _now,
+  forecast: [
+    for (final (percent, minutes) in [
+      (50, 6),
+      (60, 13),
+      (70, 20),
+      (80, 27),
+      (90, 34),
+      (100, 41),
+    ])
+      ForecastStep(percent, _now.add(Duration(minutes: minutes))),
+  ],
+  powerHistory: history,
+  fullTimeFromSystem: fromSystem,
+);
+
+BatteryStats _plugged({required bool full}) => BatteryStats(
+  levelPercent: full ? 100 : 80,
+  isCharging: false,
+  plugType: PlugType.ac,
+  watts: null,
+  currentMa: null,
+  voltageV: 4.35,
+  temperatureC: 31.0,
+  minutesTo80: null,
+  minutesTo100: null,
+  updatedAt: _now,
+  chargeHeld: !full,
+  isFull: full,
+);
 
 BatteryStats _onBattery({
   double? minutesLeft,
@@ -175,6 +193,56 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await _pump(tester, _onBattery(minutesLeft: 680, drainMa: 1240));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('charging screen says when the 100% time is a typical curve', (
+    tester,
+  ) async {
+    await _pump(tester, _charging());
+    expect(
+      find.text(
+        'Times above 80% use a typical charging curve, so they are approximate.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('charging screen says when the 100% time comes from the phone', (
+    tester,
+  ) async {
+    await _pump(tester, _charging(fromSystem: true));
+    expect(
+      find.text(
+        'Time to 100% comes from your phone. Charging slows above 80%.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('plugged in but paused says so and hides the times', (
+    tester,
+  ) async {
+    await _pump(tester, _plugged(full: false));
+
+    expect(find.text('Paused · AC'), findsOneWidget);
+    expect(find.text('Charging paused'), findsOneWidget);
+    expect(find.text('Charging is paused'), findsOneWidget);
+    expect(find.text('80'), findsOneWidget);
+    expect(find.text('Charge forecast'), findsNothing);
+    expect(find.text('Time to 80%'), findsNothing);
+    expect(find.text('Plug in to start'), findsNothing);
+    expect(find.text('Temperature'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('plugged in at 100% says fully charged', (tester) async {
+    await _pump(tester, _plugged(full: true));
+
+    expect(find.text('Full · AC'), findsOneWidget);
+    expect(find.text('Fully charged'), findsNWidgets(2));
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('Plug in to start'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

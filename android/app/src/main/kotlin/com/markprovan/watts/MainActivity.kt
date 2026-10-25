@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -28,13 +29,21 @@ class MainActivity : FlutterActivity() {
         val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         return mapOf(
             "levelPercent" to if (level >= 0 && scale > 0) level * 100 / scale else 0,
-            "isCharging" to (status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                status == BatteryManager.BATTERY_STATUS_FULL),
+            "status" to status,
             "voltageMv" to (intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0),
             "currentRaw" to manager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW),
             "chargeCounterUah" to manager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER),
             "temperatureTenthsC" to (intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0),
             "plugged" to (intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0),
+            // The system's own estimate to full charge, in milliseconds; -1 if unknown.
+            "systemChargeTimeMs" to systemChargeTimeMs(manager),
         )
     }
+
+    private fun systemChargeTimeMs(manager: BatteryManager): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            manager.computeChargeTimeRemaining()
+        } else {
+            -1L
+        }
 }
