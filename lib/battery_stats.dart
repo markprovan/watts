@@ -31,20 +31,55 @@ class BatterySnapshot {
     required this.chargeCounterUah,
     required this.temperatureTenthsC,
     required this.plugType,
-  });
+    int? status,
+    this.systemChargeTimeMs = -1,
+  }) : status = status ?? (isCharging ? statusCharging : statusDischarging);
 
-  factory BatterySnapshot.fromMap(Map<Object?, Object?> map) => BatterySnapshot(
-    levelPercent: map['levelPercent'] as int,
-    isCharging: map['isCharging'] as bool,
-    voltageMv: map['voltageMv'] as int,
-    currentRaw: map['currentRaw'] as int,
-    chargeCounterUah: map['chargeCounterUah'] as int,
-    temperatureTenthsC: map['temperatureTenthsC'] as int,
-    plugType: PlugType.fromAndroid(map['plugged'] as int),
-  );
+  factory BatterySnapshot.fromMap(Map<Object?, Object?> map) {
+    final status = map['status'] as int;
+    return BatterySnapshot(
+      levelPercent: map['levelPercent'] as int,
+      isCharging: status == statusCharging,
+      status: status,
+      voltageMv: map['voltageMv'] as int,
+      currentRaw: map['currentRaw'] as int,
+      chargeCounterUah: map['chargeCounterUah'] as int,
+      temperatureTenthsC: map['temperatureTenthsC'] as int,
+      plugType: PlugType.fromAndroid(map['plugged'] as int),
+      systemChargeTimeMs: map['systemChargeTimeMs'] as int,
+    );
+  }
+
+  /// BatteryManager status values.
+  static const int statusCharging = 2;
+  static const int statusDischarging = 3;
+  static const int statusNotCharging = 4;
+  static const int statusFull = 5;
 
   final int levelPercent;
+
+  /// The phone says it is actively charging.
   final bool isCharging;
+
+  /// BatteryManager.EXTRA_STATUS.
+  final int status;
+
+  /// The system's own estimate of time to full in milliseconds, or -1.
+  final int systemChargeTimeMs;
+
+  bool get isPlugged => plugType != PlugType.none;
+
+  /// Plugged in at 100%.
+  bool get isFullState =>
+      isPlugged &&
+      (status == statusFull ||
+          (status == statusNotCharging && levelPercent >= 100));
+
+  /// Plugged in but the phone has stopped charging below 100%, usually to
+  /// protect the battery.
+  bool get pausedByPhone =>
+      isPlugged && status == statusNotCharging && levelPercent < 100;
+
   final int voltageMv;
 
   /// Raw CURRENT_NOW; unit and sign vary by device.
@@ -74,6 +109,9 @@ class BatteryStats {
     this.minutesLeft,
     this.drainMa,
     this.estimatingTimeLeft = false,
+    this.chargeHeld = false,
+    this.isFull = false,
+    this.fullTimeFromSystem = false,
   });
 
   final int levelPercent;
@@ -103,6 +141,18 @@ class BatteryStats {
 
   /// Unplugged and still collecting enough readings for [minutesLeft].
   final bool estimatingTimeLeft;
+
+  /// Plugged in, but the phone has paused charging below 100%.
+  final bool chargeHeld;
+
+  /// Plugged in at 100%.
+  final bool isFull;
+
+  /// [minutesTo100] and the 90% and 100% forecast come from the system's estimate.
+  final bool fullTimeFromSystem;
+
+  bool get isPlugged =>
+      isCharging || chargeHeld || isFull || plugType != PlugType.none;
 
   DateTime? get eta80 => _eta(minutesTo80);
   DateTime? get eta100 => _eta(minutesTo100);
@@ -167,19 +217,54 @@ double? capacityMah(int chargeCounterUah, int levelPercent) {
   return chargeCounterUah / 1000 / (levelPercent / 100);
 }
 
-/// Minutes to reach [targetPercent] at a constant [currentMa].
+/// Time multiplier for the 1% step centred on [midLevel], compared with
+/// charging at the full rate. Phones hold their top current to about 80%, then
+/// slow down, slowly to 90% and steeply to 100%. At [strength] 1 the average
+/// multiplier is 1.7 for 80 to 90% and 3.3 for 90 to 100%, which matches typical
+/// fast-charging curves; a gentler charger gets a gentler slowdown.
+double taperMultiplier(double midLevel, double strength) {
+  if (midLevel <= 80) return 1;
+  if (midLevel <= 90) return 1 + 1.4 * strength * (midLevel - 80) / 10;
+  return 1 + strength * (1.4 + 1.8 * (midLevel - 90) / 10);
+}
+
+/// How hard the slowdown above 80% hits: stronger the higher the charge rate
+/// is compared with the battery size (1 is a 1C charge or faster).
+double taperStrength(double capacityMah, double rateMa) =>
+    (rateMa / capacityMah).clamp(0.25, 1.0);
+
+/// Minutes to reach [targetPercent], allowing for charging to slow above 80%.
+/// Below 80% this is the charge still needed divided by [currentMa]. Above 80%
+/// it uses a typical slowdown curve scaled by [plateauMa], the highest current
+/// seen in this charge, and by how far the current has already dropped.
 /// Returns 0 if already there, null if it cannot be estimated.
-/// Real charging slows near full, so the 100% figure is optimistic.
 double? minutesToTarget({
   required int levelPercent,
   required int targetPercent,
   required double? capacityMah,
   required double currentMa,
+  double? plateauMa,
 }) {
   if (levelPercent >= targetPercent) return 0;
   if (capacityMah == null || currentMa < _minUsableCurrentMa) return null;
-  final remainingMah = capacityMah * (targetPercent - levelPercent) / 100;
-  return remainingMah / currentMa * 60;
+  final atTaper = levelPercent >= 80;
+  final base = atTaper
+      ? math.max(plateauMa ?? currentMa, currentMa)
+      : currentMa;
+  final strength = taperStrength(capacityMah, base);
+  var observedScale = 1.0;
+  if (atTaper) {
+    final modelNow = taperMultiplier(levelPercent + 0.5, strength);
+    observedScale = ((base / currentMa) / modelNow).clamp(0.6, 2.0);
+  }
+  final minutesPerStep = capacityMah / 100 / base * 60;
+  var total = 0.0;
+  for (var level = levelPercent; level < targetPercent; level++) {
+    var multiplier = taperMultiplier(level + 0.5, strength);
+    if (level >= 80) multiplier *= observedScale;
+    total += minutesPerStep * multiplier;
+  }
+  return total;
 }
 
 /// Exponential moving average; the first sample is returned unchanged.
@@ -187,29 +272,72 @@ double smooth(double? previous, double sample, {double alpha = 0.3}) =>
     previous == null ? sample : previous + alpha * (sample - previous);
 
 /// Estimated time for each step in [forecastTargets] above [levelPercent].
-/// Empty when the rate or capacity is unknown.
+/// Empty when the rate or capacity is unknown. When the system's own estimate
+/// to full ([systemMinutesToFull]) is given, the 100% time is that estimate and
+/// the 90% time keeps its share of the way from 80% to 100%.
 List<ForecastStep> chargeForecast({
   required int levelPercent,
   required double? capacityMah,
   required double currentMa,
   required DateTime now,
+  double? plateauMa,
+  double? systemMinutesToFull,
 }) {
+  double? model(int target) => minutesToTarget(
+    levelPercent: levelPercent,
+    targetPercent: target,
+    capacityMah: capacityMah,
+    currentMa: currentMa,
+    plateauMa: plateauMa,
+  );
   final steps = <ForecastStep>[];
+  final model80 = levelPercent < 80 ? model(80) : 0.0;
+  final model100 = model(100);
   for (final target in forecastTargets) {
     if (target <= levelPercent) continue;
-    final minutes = minutesToTarget(
-      levelPercent: levelPercent,
-      targetPercent: target,
-      capacityMah: capacityMah,
-      currentMa: currentMa,
-    );
-    if (minutes == null) return const [];
+    var minutes = model(target);
+    if (minutes == null || model80 == null || model100 == null) {
+      return const [];
+    }
+    if (systemMinutesToFull != null && target > 80) {
+      final total = math.max(systemMinutesToFull, model80);
+      final span = model100 - model80;
+      final share = span > 0 ? (minutes - model80) / span : 1.0;
+      minutes = model80 + share * (total - model80);
+    }
     steps.add(
       ForecastStep(target, now.add(Duration(seconds: (minutes * 60).round()))),
     );
   }
   return steps;
 }
+
+/// The system's estimate to full charge in minutes, or null when the phone does
+/// not give one (it reports -1) or the value is implausible.
+double? systemFullMinutes(int milliseconds) {
+  if (milliseconds <= 0 || milliseconds > 24 * 60 * 60 * 1000) return null;
+  final minutes = milliseconds / 60000;
+  return minutes < 1 ? null : minutes;
+}
+
+/// Readings (2 seconds apart) of near-zero current while the phone says it is
+/// charging, needed before treating it as a pause, about 30 seconds.
+const int minHeldSamples = 15;
+
+/// Below this current, in milliamps, a charge counts as stalled.
+const double heldCurrentMa = 30;
+
+/// Charging status but almost no current for a while between 75% and 100%:
+/// the phone is holding the charge, as with adaptive charging.
+bool isHeldByCurrent({
+  required int levelPercent,
+  required double smoothedCurrentMa,
+  required int chargingSamples,
+}) =>
+    chargingSamples >= minHeldSamples &&
+    levelPercent >= 75 &&
+    levelPercent < 100 &&
+    smoothedCurrentMa < heldCurrentMa;
 
 /// Running average of the discharge current while unplugged.
 class DrainEstimate {
@@ -243,19 +371,34 @@ BatteryStats computeStats(
   DateTime? now,
   List<double> powerHistory = const [],
   DrainEstimate? drain,
+  double? plateauMa,
+  double? systemMinutesToFull,
+  bool heldByCurrent = false,
 }) {
   final time = now ?? DateTime.now();
-  final charging = s.isCharging;
+  final full = s.isFullState;
+  final held = !full && (s.pausedByPhone || (s.isCharging && heldByCurrent));
+  final charging = s.isCharging && !held && !full;
   final capacity = capacityMah(s.chargeCounterUah, s.levelPercent);
-  final readyDrain = !charging && drain != null && drain.isReady ? drain : null;
-  double? eta(int target) => charging
+  final readyDrain = !s.isPlugged && drain != null && drain.isReady
+      ? drain
+      : null;
+  double? model(int target) => charging
       ? minutesToTarget(
           levelPercent: s.levelPercent,
           targetPercent: target,
           capacityMah: capacity,
           currentMa: smoothedCurrentMa,
+          plateauMa: plateauMa,
         )
       : null;
+  final minutes80 = model(80);
+  var minutes100 = model(100);
+  var fromSystem = false;
+  if (charging && systemMinutesToFull != null && s.levelPercent < 100) {
+    minutes100 = math.max(systemMinutesToFull, minutes80 ?? 0);
+    fromSystem = true;
+  }
   return BatteryStats(
     levelPercent: s.levelPercent,
     isCharging: charging,
@@ -264,8 +407,8 @@ BatteryStats computeStats(
     currentMa: charging ? smoothedCurrentMa : null,
     voltageV: s.voltageMv / 1000,
     temperatureC: s.temperatureTenthsC / 10,
-    minutesTo80: eta(80),
-    minutesTo100: eta(100),
+    minutesTo80: minutes80,
+    minutesTo100: minutes100,
     updatedAt: time,
     forecast: charging
         ? chargeForecast(
@@ -273,6 +416,8 @@ BatteryStats computeStats(
             capacityMah: capacity,
             currentMa: smoothedCurrentMa,
             now: time,
+            plateauMa: plateauMa,
+            systemMinutesToFull: systemMinutesToFull,
           )
         : const [],
     powerHistory: charging ? powerHistory : const [],
@@ -286,7 +431,13 @@ BatteryStats computeStats(
         ? readyDrain.averageMa
         : null,
     estimatingTimeLeft:
-        !charging && drain != null && !drain.isReady && s.chargeCounterUah > 0,
+        !s.isPlugged &&
+        drain != null &&
+        !drain.isReady &&
+        s.chargeCounterUah > 0,
+    chargeHeld: held,
+    isFull: full,
+    fullTimeFromSystem: fromSystem,
   );
 }
 
@@ -334,13 +485,21 @@ String formatMa(double ma) => ma.round().toString().replaceAllMapped(
 );
 
 String chargingLabel(BatteryStats stats) {
-  if (!stats.isCharging) return 'On battery';
-  final speed = (stats.watts ?? 0) >= fastChargeWatts
-      ? 'Fast charging'
-      : 'Charging';
+  final String state;
+  if (stats.isFull) {
+    state = 'Full';
+  } else if (stats.chargeHeld) {
+    state = 'Paused';
+  } else if (stats.isCharging) {
+    state = (stats.watts ?? 0) >= fastChargeWatts
+        ? 'Fast charging'
+        : 'Charging';
+  } else {
+    return 'On battery';
+  }
   return switch (stats.plugType) {
-    PlugType.none || PlugType.unknown => speed,
-    final plug => '$speed · ${plug.label}',
+    PlugType.none || PlugType.unknown => state,
+    final plug => '$state · ${plug.label}',
   };
 }
 

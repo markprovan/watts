@@ -80,7 +80,7 @@ class _Sky extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
-    final colors = WattsColors.of(brightness, charging: stats.isCharging);
+    final colors = WattsColors.of(brightness, charging: stats.isPlugged);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -122,6 +122,32 @@ class _Sky extends StatelessWidget {
         : '$prefix ${formatClock(t, use24h: use24h, suffix: suffix)}';
     final (v80, u80) = durationParts(s.minutesTo80);
     final (v100, u100) = durationParts(s.minutesTo100);
+
+    final tempVoltage = Row(
+      children: [
+        Expanded(
+          child: StatTile(
+            colors: colors,
+            label: 'Temperature',
+            icon: Icons.thermostat_rounded,
+            value: s.temperatureC.toStringAsFixed(1),
+            unit: '°C',
+            size: 32,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: StatTile(
+            colors: colors,
+            label: 'Voltage',
+            icon: Icons.battery_full_rounded,
+            value: s.voltageV.toStringAsFixed(2),
+            unit: 'V',
+            size: 32,
+          ),
+        ),
+      ],
+    );
 
     final items = <Widget>[
       _Header(colors: colors, stats: s),
@@ -185,11 +211,20 @@ class _Sky extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
-            'Estimates assume the current rate stays constant. Charging slows above 80%, '
-            'so times to 90% and 100% are optimistic.',
+            s.fullTimeFromSystem
+                ? 'Time to 100% comes from your phone. Charging slows above 80%.'
+                : 'Times above 80% use a typical charging curve, so they are approximate.',
             style: wattsText(12, color: colors.on2, height: 1.5),
           ),
         ),
+      ] else if (s.isPlugged) ...[
+        _NoticeCard(
+          colors: colors,
+          icon: s.isFull ? Icons.battery_full_rounded : Icons.pause_rounded,
+          title: s.isFull ? 'Fully charged' : 'Charging is paused',
+          body: s.isFull ? 'You can unplug.' : 'Your phone is holding the charge, often to protect the battery.',
+        ),
+        tempVoltage,
       ] else ...[
         if (s.minutesLeft != null && s.drainMa != null)
           IntrinsicHeight(
@@ -220,32 +255,14 @@ class _Sky extends StatelessWidget {
               ],
             ),
           ),
-        _PlugInCard(colors: colors),
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                colors: colors,
-                label: 'Temperature',
-                icon: Icons.thermostat_rounded,
-                value: s.temperatureC.toStringAsFixed(1),
-                unit: '°C',
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatTile(
-                colors: colors,
-                label: 'Voltage',
-                icon: Icons.battery_full_rounded,
-                value: s.voltageV.toStringAsFixed(2),
-                unit: 'V',
-                size: 32,
-              ),
-            ),
-          ],
+        _NoticeCard(
+          colors: colors,
+          icon: Icons.bolt_rounded,
+          title: 'Plug in to start',
+          body:
+              'Power, current and time to 80% and 100% appear while charging.',
         ),
+        tempVoltage,
         if (s.minutesLeft != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -322,17 +339,25 @@ class _Hero extends StatelessWidget {
     final unit = charging ? 'W' : '%';
     final eta100 = stats.eta100;
     final left = stats.minutesLeft;
-    final meta = !charging
-        ? left != null
-              ? timeLeftLabel(left)
-              : stats.estimatingTimeLeft
-              ? 'Not charging · estimating time left…'
-              : 'Not charging'
-        : stats.levelPercent >= 100
-        ? 'Fully charged'
-        : eta100 == null
-        ? '${stats.levelPercent}%'
-        : '${stats.levelPercent}% · full about ${formatClock(eta100, use24h: use24h)}';
+    final String meta;
+    if (stats.isFull) {
+      meta = 'Fully charged';
+    } else if (stats.chargeHeld) {
+      meta = 'Charging paused';
+    } else if (!charging) {
+      meta = left != null
+          ? timeLeftLabel(left)
+          : stats.estimatingTimeLeft
+          ? 'Not charging · estimating time left…'
+          : 'Not charging';
+    } else if (stats.levelPercent >= 100) {
+      meta = 'Fully charged';
+    } else if (eta100 == null) {
+      meta = '${stats.levelPercent}%';
+    } else {
+      meta =
+          '${stats.levelPercent}% · full about ${formatClock(eta100, use24h: use24h)}';
+    }
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -400,10 +425,18 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _PlugInCard extends StatelessWidget {
-  const _PlugInCard({required this.colors});
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
 
   final WattsColors colors;
+  final IconData icon;
+  final String title;
+  final String body;
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +452,7 @@ class _PlugInCard extends StatelessWidget {
               color: colors.chip,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.bolt_rounded, size: 22, color: colors.accent),
+            child: Icon(icon, size: 22, color: colors.accent),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -427,12 +460,12 @@ class _PlugInCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Plug in to start',
+                  title,
                   style: wattsText(17, weight: 500, color: colors.on),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Power, current and time to 80% and 100% appear while charging.',
+                  body,
                   style: wattsText(13, color: colors.on2, height: 1.4),
                 ),
               ],

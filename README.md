@@ -47,8 +47,9 @@ Requires Android 7.0 or later. To update, install the newer APK over the old one
 ## How the numbers are worked out
 
 - **Power** is the battery voltage multiplied by the charging current, smoothed over a few seconds so it doesn't jump around.
-- **Time estimates** divide the charge still needed by the current charging rate. The battery's capacity comes from its own charge counter and level.
-- **Estimates assume the rate stays the same.** Phones slow charging as the battery fills and warms up, so times to 90% and 100% are shorter than real life. The 80% estimate is usually closest.
+- **Time to 80%** divides the charge still needed by the current charging rate. The battery's capacity comes from its own charge counter and level.
+- **Above 80%** phones slow charging down. For 100% Watts uses your phone's own estimate when it gives one. Otherwise it uses a typical slowdown curve, adjusted for how fast you are charging and how far the current has already dropped. Either way, 90% and 100% are the least certain times.
+- **Paused charging.** If your phone is plugged in but has stopped charging, often to protect the battery, Watts says "Charging paused" instead of showing a time.
 - **Time left on battery** divides the charge remaining by your average drain over the last couple of minutes. It needs about 30 seconds of readings after you open the app, and only measures while the app is open. It assumes you keep using the phone the way you are now, so it changes as you use it, and it won't match Android's own estimate exactly.
 - **Temperature status:** Normal below 38°C, Warm from 38°C, Hot from 42°C.
 
@@ -70,6 +71,12 @@ Some phones don't report the charging current, or report too little for an estim
 <summary>Why does the forecast start at 50%?</summary>
 
 The steps are 50%, 60%, 70%, 80%, 90% and 100%. Steps you have already passed are hidden, so the row shrinks as the battery charges.
+</details>
+
+<details>
+<summary>It says charging is paused.</summary>
+
+Your phone is plugged in but has stopped charging, usually to protect the battery by holding it at 80% or 85%. Look for battery protection or adaptive charging in your phone's settings.
 </details>
 
 <details>
