@@ -86,6 +86,8 @@ Yes. Watts reads the battery, not the charger, and shows the connection type nex
 
 ## For developers
 
+Website: https://markprovan.github.io/watts/
+
 Building, testing, releasing and the project layout are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 Watts is released under the [MIT License](LICENSE). Roboto Flex is used under the SIL Open Font License ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).

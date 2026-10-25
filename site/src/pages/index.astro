@@ -1,0 +1,251 @@
+---
+import { Image } from 'astro:assets';
+import '../styles/global.css';
+import phoneLight from '../assets/shots/phone-light.png';
+import phoneDark from '../assets/shots/phone-dark.png';
+import power from '../assets/shots/power.png';
+import forecast from '../assets/shots/forecast.png';
+import temperature from '../assets/shots/temperature.png';
+import timeLeft from '../assets/shots/time-left.png';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repo = 'https://github.com/markprovan/watts';
+const download = `${repo}/releases/latest`;
+const title = 'Watts: see how fast your phone is charging';
+const description =
+  'Watts shows the power going into your battery, how long until 80% and 100%, and how warm it is. A free Android app with no ads, no account and no permissions.';
+const ogImage = new URL(`${base}/og.png`, Astro.site).href;
+const pageUrl = new URL(`${base}/`, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#fff9ec" />
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImage} />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <div class="wrap">
+      <header class="top">
+        <div class="brand">
+          <img src={`${base}/icon.png`} alt="" width="44" height="44" />
+          <span>Watts</span>
+        </div>
+        <a class="top-link" href={repo}>View on GitHub</a>
+      </header>
+    </div>
+
+    <main id="main">
+      <div class="wrap hero">
+        <div class="hero-text">
+          <h1>See <span class="marker">how fast</span> your phone is charging.</h1>
+          <p class="lede">
+            Watts shows the power going into your battery, how long until 80% and 100%, and how warm
+            it is getting. Unplugged, it tells you how long you have left.
+          </p>
+          <div class="cta">
+            <a class="btn" href={download}>Download for Android</a>
+            <span class="small">Android 7.0 or later</span>
+          </div>
+          <ul class="checks">
+            {
+              ['Free and open source', 'No ads', 'No account', 'No permissions'].map((item) => (
+                <li>
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                  {item}
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <div class="phones">
+          <div class="phones-inner">
+            <div class="phone phone-a">
+              <Image
+                src={phoneLight}
+                width={500}
+                alt="Watts while charging in light mode: 15.8 watts, 42 percent"
+                loading="eager"
+              />
+            </div>
+            <div class="phone phone-b">
+              <Image src={phoneDark} width={500} alt="Watts while charging in dark mode" loading="eager" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="band band-white" aria-labelledby="four">
+        <div class="wrap">
+          <h2 class="h2" id="four">Four things you actually want to know</h2>
+          <div class="rows">
+            <div class="row">
+              <div class="row-text">
+                <div class="badge" aria-hidden="true">1</div>
+                <h3>How many watts?</h3>
+                <p>
+                  A big, live number: the power flowing into your battery right now. It says Fast
+                  charging once you pass 15 watts, so you can tell a good cable from a bad one.
+                </p>
+              </div>
+              <div class="panel mint">
+                <div class="shot">
+                  <Image
+                    src={power}
+                    width={600}
+                    alt="Watts showing 15.8 watts and a battery bar with an 80 percent marker"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <div class="badge" aria-hidden="true">2</div>
+                <h3>When will it be ready?</h3>
+                <p>
+                  Minutes to 80% and to 100%, the clock time you will get there, and a forecast for
+                  every 10% on the way. Unplug at 80% and go easy on the battery.
+                </p>
+              </div>
+              <div class="panel butter">
+                <div class="shot">
+                  <Image
+                    src={forecast}
+                    width={600}
+                    alt="Charge forecast from 50 to 100 percent with clock times, and the time to 80 and 100 percent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <div class="badge" aria-hidden="true">3</div>
+                <h3>Is it getting hot?</h3>
+                <p>
+                  The battery's own temperature, marked Normal, Warm or Hot, with the current and
+                  voltage right beside it. Handy when a case is trapping heat.
+                </p>
+              </div>
+              <div class="panel blush">
+                <div class="shot">
+                  <Image
+                    src={temperature}
+                    width={600}
+                    alt="Battery temperature of 33.4 degrees marked Normal, with current and voltage"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <div class="badge" aria-hidden="true">4</div>
+                <h3>How long will it last?</h3>
+                <p>
+                  Unplugged, Watts works out the time left from how fast the battery is draining, and
+                  when it would run out. It moves as you use your phone, because it follows what you
+                  are doing.
+                </p>
+              </div>
+              <div class="panel sky">
+                <div class="shot">
+                  <Image
+                    src={timeLeft}
+                    width={600}
+                    alt="Watts on battery showing about 11 hours 20 minutes left and a drain of 240 milliamps"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-dark on-dark" aria-labelledby="straight">
+        <div class="wrap">
+          <h2 class="h2" id="straight">Straight answers</h2>
+          <div class="answers">
+            <div class="answer">
+              <h3>The times are estimates.</h3>
+              <p>
+                Watts divides what is left to charge by the speed right now. Phones slow down above
+                80%, so the 90% and 100% times are optimistic. The 80% time is usually close.
+              </p>
+            </div>
+            <div class="answer">
+              <h3>It shows what your phone reports.</h3>
+              <p>
+                Some phones do not report charging current. If yours does not, Watts shows dashes
+                instead of guessing.
+              </p>
+            </div>
+            <div class="answer">
+              <h3>It only looks while it is open.</h3>
+              <p>
+                No background tracking, no notification, no battery use when Watts is closed. It asks
+                for no permissions and sends nothing anywhere.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="install">
+        <div class="wrap">
+          <h2 class="h2" id="install">Install it in a minute</h2>
+          <ol class="steps">
+            <li class="step">
+              <div class="num" aria-hidden="true">1</div>
+              <h3>Download the APK</h3>
+              <p>Open the latest release on your phone and download the Watts file.</p>
+            </li>
+            <li class="step">
+              <div class="num" aria-hidden="true">2</div>
+              <h3>Open it</h3>
+              <p>Android asks to allow installs from your browser or file manager. Say yes.</p>
+            </li>
+            <li class="step">
+              <div class="num" aria-hidden="true">3</div>
+              <h3>Plug in</h3>
+              <p>Open Watts and connect a charger. Updates install over the top.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="band band-green on-dark" aria-labelledby="closing">
+        <div class="wrap closing">
+          <h2 id="closing">Plug in and see.</h2>
+          <a class="btn btn-yellow" href={download}>Download for Android</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <span>Watts is made by Mark Provan. MIT licence.</span>
+      <nav aria-label="Links">
+        <a href={repo}>Source on GitHub</a>
+        <a href={`${repo}/releases`}>All releases</a>
+        <a href={`${repo}/tree/main/site/src/assets/fonts`}>Font licences</a>
+      </nav>
+    </footer>
+  </body>
+</html>
