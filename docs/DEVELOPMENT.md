@@ -28,11 +28,27 @@ The widget tests load the bundled font so layout checks use real text sizes.
 |---|---|---|
 | `ci.yml` | Every push and pull request | Format check, analysis, tests |
 | `build-apk.yml` | Push to `main` that changes `lib/`, `android/`, `pubspec.yaml` or `pubspec.lock`, or run manually | Builds a debug APK and uploads it as the `watts-debug-apk` artifact |
+| `pages.yml` | Pull requests and pushes to `main` that touch `site/` | Builds the website; deploys it to GitHub Pages from `main` |
 | `release.yml` | Push of a `v*` tag, or run manually | Builds a signed release APK and attaches it to the GitHub release |
+
+## Website
+
+The landing page is an Astro site in `site/`, published to GitHub Pages at https://markprovan.github.io/watts/.
+
+```
+cd site
+npm install
+npm run dev      # local preview
+npm run build    # output in site/dist
+```
+
+Astro needs Node 22.23.4 or later (the workflow uses 24). `site/src/pages/index.astro` is the whole page and `site/src/styles/global.css` its styles. The screenshots are cropped from `docs/screenshots` into `site/src/assets/shots`, and Astro turns them into WebP at build time. Roboto Flex and Fraunces are bundled as Latin subsets (about 20 KB each) with their licences next to them. `site/public/og.png` is the social preview image.
+
+`pages.yml` builds the site on pull requests that touch `site/` and deploys on pushes to `main`. Pages must be switched on once in Settings, Pages, with Source set to GitHub Actions. The Flutter CI skips changes that only touch `site/`, and site changes never build an APK.
 
 ## Dependency updates
 
-Dependabot (`.github/dependabot.yml`) checks every Monday for Dart packages, GitHub Actions and Gradle dependencies. Minor and patch updates arrive as one pull request per ecosystem; major updates come as separate pull requests. Pull requests are titled `deps: ...`, and `ci.yml` runs the format check, analysis and tests on them.
+Dependabot (`.github/dependabot.yml`) checks every Monday for Dart packages, GitHub Actions, Gradle and the website's npm packages. Minor and patch updates arrive as one pull request per ecosystem; major updates come as separate pull requests. Pull requests are titled `deps: ...`, and `ci.yml` runs the format check, analysis and tests on them.
 
 Merging a dependency update does not build a test APK: `build-apk.yml` skips commits whose message starts with `deps:` or that merge a `dependabot/` branch. Releases are unaffected, because the Release workflow builds from the tag and runs the tests first.
 
