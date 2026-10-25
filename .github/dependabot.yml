@@ -1,0 +1,41 @@
+version: 2
+
+# Weekly, one pull request per ecosystem for minor and patch updates. Major
+# updates get their own pull request so they can be reviewed separately.
+# CI runs the format check, analysis and tests on every Dependabot pull request.
+updates:
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: deps
+    groups:
+      pub-dependencies:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: deps
+    groups:
+      github-actions:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: deps
+    groups:
+      gradle-dependencies:
+        patterns: ['*']
+        update-types: [minor, patch]

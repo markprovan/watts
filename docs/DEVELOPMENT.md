@@ -30,6 +30,12 @@ The widget tests load the bundled font so layout checks use real text sizes.
 | `build-apk.yml` | Push to `main` that changes `lib/`, `android/`, `pubspec.yaml` or `pubspec.lock`, or run manually | Builds a debug APK and uploads it as the `watts-debug-apk` artifact |
 | `release.yml` | Push of a `v*` tag, or run manually | Builds a signed release APK and attaches it to the GitHub release |
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) checks every Monday for Dart packages, GitHub Actions and Gradle dependencies. Minor and patch updates arrive as one pull request per ecosystem; major updates come as separate pull requests. Pull requests are titled `deps: ...`, and `ci.yml` runs the format check, analysis and tests on them.
+
+Merging a dependency update does not build a test APK: `build-apk.yml` skips commits whose message starts with `deps:` or that merge a `dependabot/` branch. Releases are unaffected, because the Release workflow builds from the tag and runs the tests first.
+
 ## Releases
 
 Creating a release in GitHub (or pushing a tag like `v1.2.0`) runs `release.yml`. It runs the checks, builds a signed release APK and attaches `Watts-v1.2.0.apk` to the release. If only a tag was pushed, it creates the release with generated notes. Tags with a `-` such as `v1.2.0-beta` become pre-releases. The tag sets the app version, and the workflow run number is the build number.
