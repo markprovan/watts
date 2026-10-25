@@ -13,7 +13,7 @@ const repo = 'https://github.com/markprovan/watts';
 const download = `${repo}/releases/latest`;
 const title = 'Watts: see how fast your phone is charging';
 const description =
-  'Watts shows the power going into your battery, how long until 80% and 100%, and how warm it is. A free Android app with no ads, no account and no permissions.';
+  'See how fast your phone is charging: power in watts, time to 80% and 100%, and battery temperature. Free, no ads, no account, no permissions.';
 const ogImage = new URL(`${base}/og.png`, Astro.site).href;
 const pageUrl = new URL(`${base}/`, Astro.site).href;
 ---
@@ -54,8 +54,7 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
         <div class="hero-text">
           <h1>See <span class="marker">how fast</span> your phone is charging.</h1>
           <p class="lede">
-            Watts shows the power going into your battery, how long until 80% and 100%, and how warm
-            it is getting. Unplugged, it tells you how long you have left.
+            Charging power, time to 80% and 100%, and battery temperature, on one screen.
           </p>
           <div class="cta">
             <a class="btn" href={download}>Download for Android</a>
@@ -93,16 +92,13 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
 
       <section class="band band-white" aria-labelledby="four">
         <div class="wrap">
-          <h2 class="h2" id="four">Four things you actually want to know</h2>
+          <h2 class="h2" id="four">What it shows</h2>
           <div class="rows">
             <div class="row">
               <div class="row-text">
                 <div class="badge" aria-hidden="true">1</div>
                 <h3>How many watts?</h3>
-                <p>
-                  A big, live number: the power flowing into your battery right now. It says Fast
-                  charging once you pass 15 watts, so you can tell a good cable from a bad one.
-                </p>
+                <p>The power going into your battery, live.</p>
               </div>
               <div class="panel mint">
                 <div class="shot">
@@ -119,10 +115,7 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
               <div class="row-text">
                 <div class="badge" aria-hidden="true">2</div>
                 <h3>When will it be ready?</h3>
-                <p>
-                  Minutes to 80% and to 100%, the clock time you will get there, and a forecast for
-                  every 10% on the way. Unplug at 80% and go easy on the battery.
-                </p>
+                <p>Time to 80% and 100%, plus a forecast for every 10% in between.</p>
               </div>
               <div class="panel butter">
                 <div class="shot">
@@ -139,10 +132,7 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
               <div class="row-text">
                 <div class="badge" aria-hidden="true">3</div>
                 <h3>Is it getting hot?</h3>
-                <p>
-                  The battery's own temperature, marked Normal, Warm or Hot, with the current and
-                  voltage right beside it. Handy when a case is trapping heat.
-                </p>
+                <p>Battery temperature, marked Normal, Warm or Hot.</p>
               </div>
               <div class="panel blush">
                 <div class="shot">
@@ -159,11 +149,7 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
               <div class="row-text">
                 <div class="badge" aria-hidden="true">4</div>
                 <h3>How long will it last?</h3>
-                <p>
-                  Unplugged, Watts works out the time left from how fast the battery is draining, and
-                  when it would run out. It moves as you use your phone, because it follows what you
-                  are doing.
-                </p>
+                <p>Unplugged, how long you have left at your current use.</p>
               </div>
               <div class="panel sky">
                 <div class="shot">
@@ -179,53 +165,30 @@ const pageUrl = new URL(`${base}/`, Astro.site).href;
         </div>
       </section>
 
-      <section class="band band-dark on-dark" aria-labelledby="straight">
+      <section class="band band-dark band-slim on-dark" aria-label="Good to know">
         <div class="wrap">
-          <h2 class="h2" id="straight">Straight answers</h2>
-          <div class="answers">
-            <div class="answer">
-              <h3>The times are estimates.</h3>
-              <p>
-                Watts divides what is left to charge by the speed right now. Phones slow down above
-                80%, so the 90% and 100% times are optimistic. The 80% time is usually close.
-              </p>
-            </div>
-            <div class="answer">
-              <h3>It shows what your phone reports.</h3>
-              <p>
-                Some phones do not report charging current. If yours does not, Watts shows dashes
-                instead of guessing.
-              </p>
-            </div>
-            <div class="answer">
-              <h3>It only looks while it is open.</h3>
-              <p>
-                No background tracking, no notification, no battery use when Watts is closed. It asks
-                for no permissions and sends nothing anywhere.
-              </p>
-            </div>
-          </div>
+          <p class="note">Times are estimates. Phones slow down after 80%, so 90% and 100% take longer than shown.</p>
         </div>
       </section>
 
       <section class="band" aria-labelledby="install">
         <div class="wrap">
-          <h2 class="h2" id="install">Install it in a minute</h2>
+          <h2 class="h2" id="install">Install</h2>
           <ol class="steps">
             <li class="step">
               <div class="num" aria-hidden="true">1</div>
               <h3>Download the APK</h3>
-              <p>Open the latest release on your phone and download the Watts file.</p>
+              <p>From the latest release, on your phone.</p>
             </li>
             <li class="step">
               <div class="num" aria-hidden="true">2</div>
               <h3>Open it</h3>
-              <p>Android asks to allow installs from your browser or file manager. Say yes.</p>
+              <p>Allow installs if Android asks.</p>
             </li>
             <li class="step">
               <div class="num" aria-hidden="true">3</div>
               <h3>Plug in</h3>
-              <p>Open Watts and connect a charger. Updates install over the top.</p>
+              <p>Open Watts and connect a charger.</p>
             </li>
           </ol>
         </div>
