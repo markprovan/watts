@@ -616,6 +616,90 @@ void main() {
     });
   });
 
+  group('edge cases', () {
+    test('currentMa switches unit at 20000', () {
+      expect(currentMa(0), 0);
+      expect(currentMa(19999), 19999);
+      expect(currentMa(20000), 20);
+      expect(currentMa(-19999), 19999);
+    });
+
+    test('watts is zero without voltage or current', () {
+      expect(watts(0, 2000), 0);
+      expect(watts(4000, 0), 0);
+    });
+
+    test('capacityMah rejects a negative counter and a zero level', () {
+      expect(capacityMah(-1, 50), isNull);
+      expect(capacityMah(2500000, 0), isNull);
+      expect(capacityMah(2500000, 100), 2500);
+    });
+
+    test('a negative current reads the same as a positive one', () {
+      final now = DateTime(2026);
+      final up = computeStats(
+        snapshot(currentRaw: 2000000),
+        currentMa(2000000),
+        now: now,
+      );
+      final down = computeStats(
+        snapshot(currentRaw: -2000000),
+        currentMa(-2000000),
+        now: now,
+      );
+      expect(down.watts, up.watts);
+      expect(down.minutesTo80, up.minutesTo80);
+    });
+
+    test('zero voltage and zero current do not break computeStats', () {
+      final s = computeStats(snapshot(voltageMv: 0, currentRaw: 0), 0);
+      expect(s.watts, 0);
+      expect(s.voltageV, 0);
+      expect(s.minutesTo80, isNull);
+      expect(s.forecast, isEmpty);
+    });
+
+    test('level 0 with a counter gives no capacity-based estimates', () {
+      final s = computeStats(snapshot(level: 0), 2000);
+      expect(s.minutesTo80, isNull);
+      expect(s.forecast, isEmpty);
+    });
+
+    test('freezing and very hot temperatures are handled', () {
+      expect(tempStatus(-10), TempStatus.normal);
+      expect(tempStatus(70), TempStatus.hot);
+      final s = computeStats(snapshot(tempTenths: -50), 2000);
+      expect(s.temperatureC, -5);
+    });
+
+    test('the 80% boundary is reached at 80 and not at 79', () {
+      expect(computeStats(snapshot(level: 80), 2000).minutesTo80, 0);
+      expect(
+        computeStats(snapshot(level: 79), 2000).minutesTo80,
+        greaterThan(0),
+      );
+    });
+
+    test('99% charging still gives a short positive time to 100%', () {
+      final s = computeStats(snapshot(level: 99), 2000);
+      expect(s.minutesTo100, greaterThan(0));
+      expect(s.forecast.map((f) => f.percent), [100]);
+    });
+
+    test('empty history has no peak', () {
+      expect(computeStats(snapshot(), 2000).peakWatts, isNull);
+      expect(
+        computeStats(snapshot(), 2000, powerHistory: [3, 9, 5]).peakWatts,
+        9,
+      );
+    });
+
+    test('unknown plug bits map to unknown', () {
+      expect(PlugType.fromAndroid(8), PlugType.unknown);
+      expect(PlugType.fromAndroid(3), PlugType.ac);
+    });
+  });
+
   test('chargingLabel', () {
     BatteryStats stats({
       required bool charging,

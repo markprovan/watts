@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watts/battery_stats.dart';
 import 'package:watts/main.dart';
+import 'package:watts/widgets.dart';
 
 final _now = DateTime(2026, 1, 1, 9, 14);
 
@@ -257,5 +260,73 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await _pump(tester, _charging());
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows a spinner until the first reading arrives', (
+    tester,
+  ) async {
+    await tester.pumpWidget(WattsApp(stats: const Stream.empty()));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(PowerChartCard), findsNothing);
+  });
+
+  testWidgets('shows the error when reading the battery fails', (tester) async {
+    await tester.pumpWidget(
+      WattsApp(stats: Stream.error(StateError('no battery'))),
+    );
+    await tester.pump();
+    expect(find.textContaining('Could not read battery'), findsOneWidget);
+    expect(find.textContaining('no battery'), findsOneWidget);
+  });
+
+  testWidgets('updates when a new reading arrives', (tester) async {
+    final controller = StreamController<BatteryStats>();
+    addTearDown(controller.close);
+    tester.view.physicalSize = const Size(390, 1300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(WattsApp(stats: controller.stream));
+    controller.add(_charging());
+    await tester.pump();
+    expect(find.text('15.8'), findsOneWidget);
+    controller.add(_onBattery(minutesLeft: 300, drainMa: 500));
+    await tester.pump();
+    expect(find.text('15.8'), findsNothing);
+    expect(find.text('Charging power'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('chart draws a line once there is history', (tester) async {
+    await _pump(tester, _charging());
+    expect(find.text('Collecting data…'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(PowerChartCard),
+        matching: find.byType(CustomPaint),
+      ),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('chart copes with a flat zero line and a full 5 minutes', (
+    tester,
+  ) async {
+    await _pump(tester, _charging(history: List.filled(60, 0)));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await _pump(
+      tester,
+      _charging(history: [for (var i = 0; i < 150; i++) i % 20 + 0.5]),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('Peak 19.5 W'), findsOneWidget);
+  });
+
+  testWidgets('text size is capped at 1.3x', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pump(tester, _charging());
+    final context = tester.element(find.byType(BatteryScreen));
+    expect(MediaQuery.textScalerOf(context).scale(10), closeTo(13, 1e-9));
   });
 }
